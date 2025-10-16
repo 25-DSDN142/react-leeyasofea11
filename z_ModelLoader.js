@@ -1,67 +1,109 @@
-/*This code is adapted from, and highly derivative from the tutorial found on the ml5.js website. 
- * 👋 Hello! This is an ml5.js example made and shared with ❤️.
- * Learn more about the ml5.js project: https://ml5js.org/
- * ml5.js license and Code of Conduct: https://github.com/ml5js/ml5-next-gen/blob/main/LICENSE.md
- *
- * This example demonstrates face tracking on live video through ml5.faceMesh.
- */
-
-let handPose, faceMesh;
-let video, painting, connections;
+let handPose;
+let video;
 let hands = [];
-let faces = [];
-let options = {
-  maxFaces: numberOfFaces,
-  refineLandmarks: false,
-  flipHorizontal: flipVideo
-};
-let fern;
-
+let sparkles = [];
+let clouds = [];
 
 function preload() {
-  // Load the ML5 models
-  faceMesh = ml5.faceMesh(options);
-  handPose = ml5.handPose({
-    maxHands: numberOfHands,
-    flipped: flipVideo
-  });
-  if (typeof prepareInteraction === 'function') {
-    // prepareInteraction exists and is a function
-    prepareInteraction(); // You can safely call the function here
-  }
+  handPose = ml5.handPose();
 }
 
 function setup() {
-  createCanvas(CaptureWidth, CaptureHeight);
-  frameRate(performancePresets[performanceMode].targetFPS);
+  createCanvas(640, 480);
+  video = createCapture(VIDEO);
+  video.size(640, 480);
+  video.hide();
+  handPose.detectStart(video, gotHands);
 
-  // Show initial loading screen
-  loadingScreen();
-  // Initialize video capture and UI
-  initializeVideo();
-  setupUI();
-
+  // Initialize clouds
+  for (let i = 0; i < 8; i++) {
+    clouds.push({
+      x: random(width),
+      y: random(height / 2),
+      w: random(100, 200),
+      h: random(50, 100),
+      speed: random(0.1, 0.5)
+    });
+  }
 }
 
 function draw() {
+  // Grey-blue sky background
+  background(180, 200, 255);
 
-  if (!checks()) {
-    return;
+  // Draw and move clouds
+  noStroke();
+  fill(220, 220, 255, 180); // soft cloud color
+  for (let cloud of clouds) {
+    ellipse(cloud.x, cloud.y, cloud.w, cloud.h);
+    ellipse(cloud.x - cloud.w/3, cloud.y + 10, cloud.w * 0.7, cloud.h * 0.7);
+    ellipse(cloud.x + cloud.w/3, cloud.y - 10, cloud.w * 0.7, cloud.h * 0.7);
+
+    cloud.x += cloud.speed; // move cloud slowly
+    if (cloud.x - cloud.w > width) cloud.x = -cloud.w; // loop cloud
   }
-  detectionFrame++;
-  let confidentlyHands = []
+
+  // Draw video slightly transparent on top
+  tint(255, 100);
+  image(video, 0, 0, width, height);
+  noTint();
+
+  // Add sparkles at index finger
   for (let i = 0; i < hands.length; i++) {
-    if (hands[i].confidence > threshold) {
-      confidentlyHands.push(hands[i])
+    let index = hands[i].index_finger_tip;
+    addSparkle(index.x, index.y);
+  }
+
+  // Update and draw sparkles
+  for (let i = sparkles.length - 1; i >= 0; i--) {
+    sparkles[i].update();
+    sparkles[i].show();
+    if (sparkles[i].finished()) {
+      sparkles.splice(i, 1);
     }
   }
-  // Draw interaction between faces and hands
+}
 
-  drawInteraction(faces, confidentlyHands);
+function gotHands(results) {
+  hands = results;
+}
 
+function addSparkle(x, y) {
+  sparkles.push(new Sparkle(x, y));
+}
 
-  // Draw painting overlay
-  image(painting, 0, 0);
-
-  drawUI();
+class Sparkle {
+  constructor(x, y) {
+    this.x = x + random(-5, 5);
+    this.y = y + random(-5, 5);
+    this.size = random(8, 15);
+    this.alpha = 255;
+    this.angle = random(TWO_PI);
+    this.speed = random(0.01, 0.03);
+  }
+  
+  update() {
+    this.alpha -= 4;
+    this.angle += this.speed;
+  }
+  
+  finished() {
+    return this.alpha <= 0;
+  }
+  
+  show() {
+    push();
+    translate(this.x, this.y);
+    rotate(this.angle);
+    noStroke();
+    fill(255, 255, 0, this.alpha); // bright yellow
+    beginShape();
+    for (let i = 0; i < 8; i++) {
+      let len = i % 2 === 0 ? this.size : this.size / 2;
+      let a = TWO_PI / 8 * i;
+      vertex(cos(a) * len, sin(a) * len);
+    }
+    endShape(CLOSE);
+    pop();
+  }
 }
